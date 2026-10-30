@@ -119,31 +119,33 @@ export function apply(ctx, config = {}) {
 
   /* ------------------------------------------------------------ 状态 / 配置 */
 
+  /** 状态快照：工具和设置页共用一份，省得两边口径不一样 */
+  const statusOf = async () => {
+    const cfg = cfgOf()
+    const st = readState()
+    const q = replyQuota(st, cfg)
+    const next = cfg.valleyOnly ? nextValley(new Date(), { noonBusy: !cfg.noon, afternoonBusy: true }) : new Date()
+    return {
+      version: VERSION,
+      cid: cfg.cid,
+      token: zanao.hasToken() ? `已存（${mask(zanao.getToken())}）` : '没有',
+      today: { date: st.date, replies: st.replies || 0, quotaLeft: q.left, waitSec: q.waitSec },
+      autoReply: cfg.autoReply,
+      draftOnly: cfg.draftOnly,
+      drafts: draftStats(),
+      autoRun: cfg.autoRun,
+      round: { state: heartbeatFresh() ? 'running' : 'idle', last: st.lastRound || null },
+      headless: checkDsh(cfg),
+      nextWindow: fmtWhen(next),
+      log: logFile(),
+    }
+  }
+
   tool({
     name: 'zanao_status',
     description: '刷赞噢集市的状态：登录、学校、今日回帖额度、草稿数、上一轮、下次窗口。排障先看它。',
     parameters: {},
-    execute: async () => {
-      const cfg = cfgOf()
-      const st = readState()
-      const q = replyQuota(st, cfg)
-      const hb = heartbeatFresh() ? 'running' : 'idle'
-      const next = cfg.valleyOnly ? nextValley(new Date(), { noonBusy: !cfg.noon, afternoonBusy: true }) : new Date()
-      return json({
-        version: VERSION,
-        cid: cfg.cid,
-        token: zanao.hasToken() ? `已存（${mask(zanao.getToken())}）` : '没有',
-        today: { date: st.date, replies: st.replies || 0, quotaLeft: q.left, waitSec: q.waitSec },
-        autoReply: cfg.autoReply,
-        draftOnly: cfg.draftOnly,
-        drafts: draftStats(),
-        autoRun: cfg.autoRun,
-        round: { state: hb, last: st.lastRound || null },
-        headless: checkDsh(cfg),
-        nextWindow: fmtWhen(next),
-        log: logFile(),
-      })
-    },
+    execute: async () => json(await statusOf()),
   })
 
   tool({
@@ -405,6 +407,75 @@ export function apply(ctx, config = {}) {
       return json({ ok: r.started, ...r, log: logFile() })
     },
   })
+
+  /* ------------------------------------------------------------ HTTP（设置页用） */
+
+  const mountRoutes = (webServer) => {
+    /** 只接受同源请求：本机别的页面带外来 Origin 一律 403；curl / 同源 fetch 放行 */
+    const sameOrigin = (req) => {
+      const origin = req.headers && req.headers.origin
+      if (!origin) return true
+      try { return new URL(origin).host === String((req.headers && req.headers.host) || '') } catch { return false }
+    }
+    try {
+      ctx.effect(() => webServer.register({
+        kind: 'prefix',
+        path: '/api/zanao-market',
+        handler: async (req, res) => {
+          if (!sameOrigin(req)) return sendJson(res, 403, { ok: false, error: '跨站请求被拒（只接受同源）' })
+          const sub = new URL(req.url, 'http://127.0.0.1').pathname.replace('/api/zanao-market', '') || '/'
+          try {
+            if (sub === '/status' && req.method === 'GET') return sendJson(res, 200, await statusOf())
+            if (sub === '/config' && req.method === 'GET') return sendJson(res, 200, cfgOf())
+            if (sub === '/config' && req.method === 'POST') {
+              const b = await readBody(req)
+              return sendJson(res, 200, writeConfig(b, config))
+            }
+            if (sub === '/token' && req.method === 'POST') {
+              const b = await readBody(req)
+              const len = zanao.setToken(String(b.token || ''))
+              return sendJson(res, 200, { ok: true, tokenLen: len, ...(await zanao.probe()) })
+            }
+            if (sub === '/selfcheck' && req.method === 'GET') return sendJson(res, 200, await zanao.probe())
+            if (sub === '/run' && req.method === 'POST') {
+              const b = await readBody(req)
+              const r = runRound({ cfg: cfgOf(), trigger: 'manual', prompt: String(b.prompt || '') })
+              return sendJson(res, 200, { ok: r.started, ...r })
+            }
+            return sendJson(res, 404, { ok: false, error: `unknown ${req.method} ${sub}` })
+          } catch (e) {
+            noteError('HTTP ' + sub, e)
+            return sendJson(res, 500, { ok: false, error: e?.message ?? String(e) })
+          }
+        },
+      }), 'zanao-market: /api/zanao-market 路由')
+      log('HTTP 路由已挂载：/api/zanao-market')
+    } catch (e) { log(`HTTP 路由没挂上：${e?.message ?? e}`) }
+  }
+
+  let mounted = false
+  const takeServer = () => {
+    try {
+      const s = typeof ctx.get === 'function' ? ctx.get('webServer') : undefined
+      return s || ctx.webServer
+    } catch { return undefined }
+  }
+  const tryMount = () => {
+    if (mounted) return true
+    const srv = takeServer()
+    if (!srv) return false
+    mountRoutes(srv)
+    mounted = true
+    return true
+  }
+  if (typeof ctx.inject === 'function') {
+    try { ctx.inject(['webServer'], (c) => { mounted = true; mountRoutes(c.webServer) }) } catch { /* 退到轮询 */ }
+  }
+  if (!tryMount() && !mounted) {
+    const timer = setInterval(() => { try { if (tryMount()) clearInterval(timer) } catch { /* 继续等 */ } }, 1000)
+    timer.unref?.()
+    if (typeof ctx.effect === 'function') ctx.effect(() => () => clearInterval(timer), 'zanao-market: 等 webServer 就绪')
+  }
 
   /* ------------------------------------------------------------ 设置页 */
 

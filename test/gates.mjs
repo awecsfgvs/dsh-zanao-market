@@ -80,5 +80,29 @@ const d = await by('zanao_draft').execute({ tid: '1', content: '这价贵了，B
 assert.equal(d.ok, true)
 assert.equal((await by('zanao_drafts').execute({})).count, 1)
 
+// 7. 设置页路由：挂得上、status 能返回、未知路径 404
+const routes = []
+const webServer = { register: (def) => { routes.push(def); return () => {} } }
+apply({
+  tools: { register: () => {} },
+  settings: { register: () => {} },
+  effect: (fn) => { const x = fn(); return () => x && x() },
+  inject: (_deps, cb) => cb({ webServer }),
+}, {})
+assert.equal(routes.length, 1, `路由没挂上：${routes.length}`)
+assert.equal(routes[0].path, '/api/zanao-market')
+
+const call = async (method, url) => {
+  let body = ''
+  const res = { writeHead(c) { this.code = c }, end(t) { body += t } }
+  await routes[0].handler({ method, url, headers: { host: '127.0.0.1' } }, res)
+  return { code: res.code, body }
+}
+const rs = await call('GET', '/api/zanao-market/status')
+assert.equal(rs.code, 200)
+assert.ok(JSON.parse(rs.body).version.startsWith('0.1.'))
+assert.equal((await call('GET', '/api/zanao-market/config')).code, 200)
+assert.equal((await call('GET', '/api/zanao-market/nope')).code, 404)
+
 fs.rmSync(tmpHome, { recursive: true, force: true })
-console.log('gates ok：15 个工具 / 四道拒发 / 配置夹紧 / 草稿流 全部通过')
+console.log('gates ok：15 个工具 / 四道拒发 / 配置夹紧 / 草稿流 / 设置页路由 全部通过')

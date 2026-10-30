@@ -29,6 +29,12 @@ npm pack && dsh plugin --profile desktop add ./dsh-zanao-market-0.1.0.tgz
 2. `zanao_login`（或设置页粘贴）→ 自动 probe：学校、列表、本人信息三步全绿才算好。
 3. `zanao_config` 调参数（可选）：`keywords`、`readPerRound`、`replyPerDay`、`runHour`…
 
+## 设置页
+
+重启 DSH 后，**设置 → 刷赞噢集市** 里有面板：凭证状态、今日额度、草稿数、
+token 输入框（保存即验证）、每轮/回帖/自动化三组开关，以及「运行自检」「立刻跑一轮」。
+面板只调 `/api/zanao-market`，真正干活仍然在工具层。
+
 ## 工具
 
 | 工具 | 干什么 |

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.1 — 2026-10-30
+
+- **设置页**：`设置 → 刷赞噢集市` 面板（`client.js`）+ 主机路由 `/api/zanao-market`
+  （`/status`、`/config`、`/token`、`/selfcheck`、`/run`，只接受同源）。
+- 面板里能存 token、跑自检、调每轮/回帖/自动化三组开关、立刻跑一轮。
+- 路由挂载带三层兜底：`ctx.inject` → 现在取 → 每秒轮询等 `webServer` 就绪。
+- `gates.mjs` 增补路由断言（挂载 / status 200 / 未知路径 404）。
+
 ## 0.1.0 — 2026-10-30
 
 首个版本。
