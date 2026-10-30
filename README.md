@@ -60,6 +60,7 @@ token 输入框（保存即验证）、每轮/回帖/自动化三组开关，以
 - **闸 3** 同一个帖一天只回一次；
 - **锁 1** `autoReply` 默认关，关着时 `zanao_reply` 直接拒（除非用户当场 `force:true`）；
 - **锁 2** `draftOnly` 默认开，必须「先落草稿 → 人看过 → `approved:true`」才发。
+- `replyText` 非空时，回帖内容固定成这一句（水经验用，例如 `3` / `+3`），不经过人设。
 
 额度计数在 `$DSH_HOME/zanao-market/state.json`，跨进程、重启都认。
 

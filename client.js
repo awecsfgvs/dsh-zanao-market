@@ -209,6 +209,12 @@ window.__ModuleLoader__.load({
             sw('autoReply', '允许自动回帖（关着时工具会拒）'),
             num('replyPerDay', '每天最多几条'),
             num('replyGapSec', '两条之间至少多少秒', '秒'),
+            h('label', { key: 'rt', className: 'zn-label' }, '固定回复内容（水经验用，留空=照人设写）'),
+            h('input', {
+              key: 'rti', className: 'zn-in', defaultValue: cfg.replyText || '', disabled: busy,
+              placeholder: '3 或 +3',
+              onBlur: (e) => { const v = e.target.value.trim(); if (v !== (cfg.replyText || '')) save({ replyText: v }) },
+            }),
             h('div', { key: 'n', className: 'zn-kv' }, '同帖一天只回一次，这条写死在 state 里，改不了。'),
           ]),
         ]),
