@@ -29,6 +29,15 @@ npm pack && dsh plugin --profile desktop add ./dsh-zanao-market-0.1.0.tgz
 2. `zanao_login`（或设置页粘贴）→ 自动 probe：学校、列表、本人信息三步全绿才算好。
 3. `zanao_config` 调参数（可选）：`keywords`、`readPerRound`、`replyPerDay`、`runHour`…
 
+## 水经验模式
+
+```bash
+node bin/water.mjs          # 挑一个没回过的帖子，发 replyText（默认 3 / +3 交替）
+```
+
+不走模型、不写日报，只发那一句；额度用完 / 间隔没到就安静退出（日志在 `$DSH_HOME/zanao-market/water.log`）。
+挂到 DSH cron（每 8 分钟一次）就是全自动。
+
 ## 设置页
 
 重启 DSH 后，**设置 → 刷赞噢集市** 里有面板：凭证状态、今日额度、草稿数、
