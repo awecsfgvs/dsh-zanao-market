@@ -1,6 +1,6 @@
 {
   "name": "dsh-zanao-market",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "DSH 插件 · 刷赞噢校园集市：每天替你看几页帖子、挑重点写日报、顺手签到；回帖默认只落草稿，人工过目再发（自动回帖默认关，三道闸）。",
   "keywords": [
     "dsh",
