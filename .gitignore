@@ -1,0 +1,14 @@
+node_modules/
+*.tgz
+*.log
+.DS_Store
+dist/
+# 凭证与运行数据永远不进仓库
+token.txt
+config.json
+state.json
+drafts.jsonl
+reports/
+run.log
+round.lock
+hb.json

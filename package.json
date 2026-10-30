@@ -1,0 +1,50 @@
+{
+  "name": "dsh-zanao-market",
+  "version": "0.1.0",
+  "description": "DSH 插件 · 刷赞噢校园集市：每天替你看几页帖子、挑重点写日报、顺手签到；回帖默认只落草稿，人工过目再发（自动回帖默认关，三道闸）。",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "zanao",
+    "campus-market",
+    "duty"
+  ],
+  "license": "MIT",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "cordis.patch.yml",
+    "lib",
+    "prompts",
+    "README.md",
+    "AGENTS.md"
+  ],
+  "engines": {
+    "dsh": ">=0.1.7-rc.1",
+    "node": ">=22"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/awecsfgvs/dsh-zanao-market.git"
+  },
+  "homepage": "https://github.com/awecsfgvs/dsh-zanao-market#readme",
+  "bugs": {
+    "url": "https://github.com/awecsfgvs/dsh-zanao-market/issues"
+  },
+  "author": "awecsfgvs",
+  "scripts": {
+    "test": "node test/gates.mjs",
+    "test:smoke": "node test/smoke.mjs"
+  }
+}

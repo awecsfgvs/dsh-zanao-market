@@ -1,0 +1,13 @@
+# ============================================================================
+# dsh-zanao-market —— DSH bundle patch（插件自带的挂载声明）
+# ============================================================================
+# 装上之后，profile 只要在 `dsh.profile.bundles` 里列出本包名即生效：
+#   dsh plugin --profile desktop add link:/path/to/dsh-zanao-market
+# ============================================================================
+
+- insert:
+    - id: zanao-market
+      name: dsh-zanao-market
+      config:
+        # 真正的用户配置在插件自己的 config.json / 设置项里，这里只放默认值
+        enabled: true
