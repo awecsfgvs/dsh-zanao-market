@@ -54,10 +54,18 @@ if (!cands.length) { log('没有没回过的帖子了（列表就这些）'); pr
 cands.sort((a, b) => b.time - a.time)
 const target = cands[0]
 
-// 3 和 +3 交替，别一水儿全是 3
+// 话术：池子非空就从池子里随机挑一句（别连着两句一样），否则用 replyText，并按 3 / +3 交替
 const n = Number(st.water && st.water.count ? st.water.count : 0)
-const base = String(cfg.replyText || '3').trim()
-const text = base === '3' && n % 2 === 1 ? '+3' : base
+const pool = Array.isArray(cfg.replyTexts) ? cfg.replyTexts.filter(Boolean) : []
+const lastText = (st.water && st.water.lastText) || ''
+let text
+if (pool.length) {
+  const usable = pool.length > 1 ? pool.filter((x) => x !== lastText) : pool
+  text = usable[Math.floor(Math.random() * usable.length)]
+} else {
+  const base = String(cfg.replyText || '3').trim()
+  text = base === '3' && n % 2 === 1 ? '+3' : base
+}
 
 try {
   await zanao.postComment(target.id, text)
@@ -69,7 +77,7 @@ try {
 st.replies = Number(st.replies || 0) + 1
 st.lastReplyAt = Date.now()
 st.replied = { ...(st.replied || {}), [target.id]: new Date().toISOString() }
-st.water = { count: n + 1, lastAt: new Date().toISOString() }
+st.water = { count: n + 1, lastAt: new Date().toISOString(), lastText: text }
 writeState(st)
 
 log(`已发 "${text}" → ${target.id}「${target.title.slice(0, 20)}」（今日 ${st.replies}/${cfg.replyPerDay}）`)
