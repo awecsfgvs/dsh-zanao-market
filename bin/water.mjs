@@ -18,7 +18,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import * as zanao from '../lib/zanao.mjs'
 import { readConfig } from '../lib/config.mjs'
-import { readState, writeState, replyQuota, isLiked, markLiked, isLikedComment, markLikedComment } from '../lib/state.mjs'
+import { readState, writeState, replyQuota, isLiked, markLiked, isLikedComment, markLikedComment, isBanned, markBan, parseBanUntil } from '../lib/state.mjs'
 import { localStamp } from '../lib/time.mjs'
 
 const log = (m) => {
@@ -59,6 +59,13 @@ zanao.setCid(cfg.cid)
 zanao.setGap(cfg.requestGapMs)
 
 const st = readState()
+
+// 禁言期：一条都不发，也不重试。上次被限流时每分钟重试了一百多次，纯属添乱。
+if (isBanned(st)) {
+  log(`还在禁言期（到 ${new Date(Number(st.banUntil)).toLocaleString('zh-CN')}），本轮不发`)
+  process.exit(0)
+}
+
 const q = replyQuota(st, cfg)
 if (q.left <= 0) { log(`今日额度用完（${st.replies}/${cfg.replyPerDay}），明天再说`); process.exit(0) }
 if (q.waitSec > 0) { log(`两条之间还要等 ${q.waitSec}s（本轮间隔 ${q.gapSec}s），这轮跳过`); process.exit(0) }
@@ -104,6 +111,12 @@ try {
   await zanao.postComment(target.id, text)
 } catch (e) {
   log(`发失败 tid=${target.id}：${e.message}`)
+  if (e.code === 10) {
+    const until = parseBanUntil(e.message)
+    markBan(st, until, e.message)
+    writeState(st)
+    log(`记下禁言：到 ${new Date(until).toLocaleString('zh-CN')} 之前不再发`)
+  }
   process.exit(1)
 }
 

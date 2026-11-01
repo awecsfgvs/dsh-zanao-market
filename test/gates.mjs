@@ -98,6 +98,21 @@ const lk = await by('zanao_like').execute({ tid: '1' })
 assert.equal(lk.dryRun, true)
 assert.match(lk.would, /点赞帖子/)
 
+// 6e. 禁言：从集市原话抠解封时刻，抠不出来按 2 小时保守等
+const { parseBanUntil, isBanned, markBan } = await import('../lib/state.mjs')
+const t0 = new Date(2026, 10, 1, 19, 0, 0).getTime()
+const until = parseBanUntil('系统暂时不能为您提供评论服务，直到2026年11月02日', t0)
+assert.equal(new Date(until).getMonth(), 10)
+assert.equal(new Date(until).getDate(), 2)
+assert.ok(until > t0, '解封时刻要在现在之后')
+assert.equal(parseBanUntil('没有日期的原话', t0), t0 + 2 * 3600_000)
+assert.equal(isBanned({ banUntil: until + 1000 }, t0), true)
+assert.equal(isBanned({ banUntil: t0 - 1000 }, t0), false)
+const bs = {}
+markBan(bs, until, '测试')
+assert.equal(bs.banUntil, until)
+assert.equal(bs.banReason, '测试')
+
 // 草稿流
 const d = await by('zanao_draft').execute({ tid: '1', content: '这价贵了，B 区新的才 80。' })
 assert.equal(d.ok, true)

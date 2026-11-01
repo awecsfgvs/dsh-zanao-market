@@ -15,7 +15,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import * as zanao from '../lib/zanao.mjs'
 import { readConfig } from '../lib/config.mjs'
-import { readState, writeState, isLiked, markLiked } from '../lib/state.mjs'
+import { readState, writeState, isLiked, markLiked, isBanned, markBan, parseBanUntil } from '../lib/state.mjs'
 import { localStamp } from '../lib/time.mjs'
 
 const MAX_PER_RUN = 25
@@ -54,6 +54,7 @@ zanao.setCid(cfg.cid)
 zanao.setGap(cfg.requestGapMs)
 
 const st = readState()
+if (isBanned(st)) { log('还在禁言期，这轮不点'); process.exit(0) }
 const todo = []
 const push = (id, why) => {
   const tid = String(id || '')
@@ -91,6 +92,7 @@ for (const { tid, why } of todo.slice(0, MAX_PER_RUN)) {
   } catch (e) {
     fail++
     log(`点赞失败 ${tid}：${e.message}`)
+    if (e.code === 10) { markBan(st, parseBanUntil(e.message), e.message); break }
     if (e.code === 20) break
   }
 }
