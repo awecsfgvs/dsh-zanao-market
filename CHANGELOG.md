@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.1.8 — 2026-11-01
+
+- 点赞范围收窄：默认只点「自己发言过的那个帖子」。
+  `likeOwnComment` / `likeOwnThread` 默认改成 `false` —— 不再点自己的评论、不再点自己发的帖。
+  `autoLike` 与 `likeRepliedThread` 保持 `true`。代码路径都在，开关打开即可恢复。
+
+## 0.1.7 — 2026-10-31
+
+- 新增点赞：`POST thread/like`（`id`+`comment_id=0`+`action=1`）与 `POST comment/like`（`id`+`comment_id`+`action=1`）。
+  `action=0` 取消。服务端幂等置位，重复点不累加 —— `lib/zanao.mjs` 实测：点前 `like_num=0 / like_has=false`，点后 `1 / true`。
+- `lib/zanao.mjs` 加 `likeThread()`、`likeComment()`、`myCommentId()`（发评论接口不回 id，只能回头按 `is_mine` + 内容找）；
+  `comments()` 映射补 `mine` / `likeHas`。
+- `bin/water.mjs`：回帖后顺手点「自己发言的这个帖子」+「自己刚发的那条评论」。
+- 新增 `bin/like.mjs`：补赞脚本，把 `state.replied` 里回过言的帖 + 列表里自己的帖点一遍，一轮 25 个封顶。
+- 新增工具 `zanao_like`（默认干跑，`confirm:true` 才点，`action:0` 取消）。
+- 配置新增 `autoLike` / `likeRepliedThread` / `likeOwnComment` / `likeOwnThread`（默认全开）；设置页回帖卡片加了四个开关。
+- `state.json` 加 `liked` / `likedComments` 记录，省重复请求。
+
+## 0.1.6 — 2026-10-31
+
+- 新增 `replyGapJitterSec`：两条间隔在 `replyGapSec ~ replyGapSec + replyGapJitterSec` 之间随机浮动。
+  浮动值用 `lastReplyAt` 当种子（mulberry32），同一条回复之后算出来的间隔固定，`waitSec` 不会来回抖。
+  `lib/state.mjs` 新增 `gapSeconds()`，`replyQuota()` 多返回一个 `gapSec`；`water.log` 里跳过的那行会打印本轮间隔。
+- `replyPerDay` 上限从 500 放宽到 2000（原来填 800 会被夹回 500）。
+- 设置页回帖卡片多一个「间隔随机浮动上限（0=固定）」输入框。
+- 实测（60 + 120）：10:44:03 → 10:46:03 各发一条，10:45 / 10:47 / 10:48 按间隔跳过，日志打印 99s / 128s。
+
 ## 0.1.5 — 2026-10-30
 
 - `bin/water.mjs` 加互斥锁 `water.lock`（O_EXCL 建文件，2 分钟过期）：cron 与手动同时触发时只发一条。

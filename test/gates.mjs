@@ -32,10 +32,11 @@ const by = (n) => {
 
 // 1. 工具齐
 const names = tools.map((t) => t.name).sort()
-assert.equal(names.length, 15, `工具数不对：${names.length}`)
+assert.equal(names.length, 16, `工具数不对：${names.length}`)
 for (const n of ['zanao_status', 'zanao_config', 'zanao_login', 'zanao_whoami', 'zanao_list',
   'zanao_thread', 'zanao_draft', 'zanao_drafts', 'zanao_reply', 'zanao_report_write',
-  'zanao_report_read', 'zanao_reports', 'zanao_persona', 'zanao_selfcheck', 'zanao_run']) {
+  'zanao_report_read', 'zanao_reports', 'zanao_persona', 'zanao_selfcheck', 'zanao_run',
+  'zanao_like']) {
   by(n)
 }
 
@@ -75,6 +76,28 @@ assert.equal(c.replyPerDay, 0)
 assert.equal(c.requestGapMs, 300)
 assert.equal(c.dedupeDays, 1)
 
+// 6b. 800/天上限放得下（原来被 500 夹死），越界仍然夹紧
+assert.equal(normalize({ replyPerDay: 800 }).replyPerDay, 800)
+assert.equal(normalize({ replyPerDay: 99999 }).replyPerDay, 2000)
+assert.equal(normalize({ replyGapJitterSec: -5 }).replyGapJitterSec, 0)
+
+// 6c. 间隔浮动：60 + 120 → 60~180 秒，且同一条回复算出来是固定的
+const { gapSeconds } = await import('../lib/state.mjs')
+const jcfg = { replyGapSec: 60, replyGapJitterSec: 120 }
+const g1 = gapSeconds({ lastReplyAt: 1761900000000 }, jcfg)
+assert.equal(g1, gapSeconds({ lastReplyAt: 1761900000000 }, jcfg), 'jitter 不稳定')
+assert.ok(g1 >= 60 && g1 <= 180, `间隔越界：${g1}`)
+const spread = new Set()
+for (let i = 0; i < 300; i++) spread.add(gapSeconds({ lastReplyAt: 1761900000000 + i * 1000 }, jcfg))
+assert.ok(spread.size > 60, `jitter 没散开：${spread.size}`)
+assert.ok(Math.min(...spread) >= 60 && Math.max(...spread) <= 180, '浮动越界')
+assert.equal(gapSeconds({ lastReplyAt: 123 }, { replyGapSec: 60, replyGapJitterSec: 0 }), 60)
+
+// 6d. 点赞：不带 confirm 只干跑，不会真发请求
+const lk = await by('zanao_like').execute({ tid: '1' })
+assert.equal(lk.dryRun, true)
+assert.match(lk.would, /点赞帖子/)
+
 // 草稿流
 const d = await by('zanao_draft').execute({ tid: '1', content: '这价贵了，B 区新的才 80。' })
 assert.equal(d.ok, true)
@@ -105,4 +128,4 @@ assert.equal((await call('GET', '/api/zanao-market/config')).code, 200)
 assert.equal((await call('GET', '/api/zanao-market/nope')).code, 404)
 
 fs.rmSync(tmpHome, { recursive: true, force: true })
-console.log('gates ok：15 个工具 / 四道拒发 / 配置夹紧 / 草稿流 / 设置页路由 全部通过')
+console.log(`gates ok：${tools.length} 个工具 / 四道拒发 / 配置夹紧 / 点赞干跑 / 草稿流 / 设置页路由 全部通过`)

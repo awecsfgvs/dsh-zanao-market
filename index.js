@@ -14,7 +14,7 @@
 import { defineTool as hostDefineTool } from './lib/toolkit.mjs'
 import * as zanao from './lib/zanao.mjs'
 import { readConfig, writeConfig, DEFAULTS } from './lib/config.mjs'
-import { readState, writeState, freshState, pruneSeen, markSeen, isSeen, replyQuota, today } from './lib/state.mjs'
+import { readState, writeState, freshState, pruneSeen, markSeen, isSeen, replyQuota, today, isLiked, markLiked, isLikedComment, markLikedComment } from './lib/state.mjs'
 import { addDraft, listDrafts, getDraft, setDraftStatus, draftStats } from './lib/drafts.mjs'
 import { writeReport, readReport, listReports } from './lib/reports.mjs'
 import { runRound, readLog, logFile, startHeartbeat, heartbeatFresh } from './lib/runner.mjs'
@@ -150,7 +150,7 @@ export function apply(ctx, config = {}) {
 
   tool({
     name: 'zanao_config',
-    description: '读/改刷集市设置。不给 patch 就是读。可改：cid、keywords、readPerRound、dedupeDays、requestGapMs、autoReply、draftOnly、replyPerDay、replyGapSec、autoRun、runHour、valleyOnly、personaText、personaFile、styleSamples。',
+    description: '读/改刷集市设置。不给 patch 就是读。可改：cid、keywords、readPerRound、dedupeDays、requestGapMs、autoReply、draftOnly、replyPerDay、replyGapSec、replyGapJitterSec、autoLike、likeOwnComment、likeOwnThread、likeRepliedThread、autoRun、runHour、valleyOnly、personaText、personaFile、styleSamples。',
     parameters: {
       patch: { type: 'object', description: '要改的字段（可省）', additionalProperties: true },
     },
@@ -335,6 +335,47 @@ export function apply(ctx, config = {}) {
       if (draft) setDraftStatus(draft.id, 'sent', { sentAt: new Date().toISOString() })
       log(`已回帖 tid=${tid}（今天第 ${st.replies} 条）`)
       return json({ ok: true, tid: String(tid), chars: text.length, todayReplies: st.replies, quotaLeft: replyQuota(st, cfg).left, ...r })
+    },
+  })
+
+  /* ------------------------------------------------------------ 点赞 */
+
+  tool({
+    name: 'zanao_like',
+    description: '给帖子或评论点赞。默认干跑（只报告会点哪个），confirm:true 才真点；action:0 是取消赞。服务端幂等，重复点不会累加。',
+    parameters: {
+      tid: { type: 'string', description: '帖子 id', required: true },
+      commentId: { type: 'string', description: '评论 id（给了就点这条评论，不给就点帖子）' },
+      action: { type: 'number', description: '1=点赞（默认）/ 0=取消' },
+      confirm: { type: 'boolean', description: '必须 true 才真点；不传就只干跑' },
+    },
+    execute: async ({ tid, commentId = '', action = 1, confirm = false } = {}) => {
+      const t = String(tid || '')
+      if (!t) return json({ ok: false, error: '帖子 id 空着' })
+      const c = String(commentId || '')
+      const kind = c ? '评论' : '帖子'
+      if (confirm !== true) {
+        return json({ ok: true, dryRun: true, would: `${action ? '点赞' : '取消赞'}${kind} ${c || t}`, hint: '要真点就带 confirm:true' })
+      }
+      const cfg = cfgOf()
+      if (!cfg.autoLike && action) return json({ ok: false, error: '配置里 autoLike 关着：先在 zanao_config 打开，或明确要求时手动确认' })
+      const st = readState()
+      if (!action) {
+        const r = c ? await zanao.likeComment(t, c, { action: 0 }) : await zanao.likeThread(t, { action: 0 })
+        if (st.liked) delete st.liked[t]
+        if (c && st.likedComments) delete st.likedComments[c]
+        writeState(st)
+        log(`取消点赞 ${kind} ${c || t}`)
+        return json({ ok: true, ...r, kind })
+      }
+      if (c ? isLikedComment(st, c) : isLiked(st, t)) {
+        return json({ ok: true, skipped: true, kind, hint: 'state 里记着已经点过（服务端幂等，重复点也不累加）' })
+      }
+      const r = c ? await zanao.likeComment(t, c) : await zanao.likeThread(t)
+      if (c) markLikedComment(st, c); else markLiked(st, t)
+      writeState(st)
+      log(`已点赞${kind} ${c || t}`)
+      return json({ ok: true, ...r, kind })
     },
   })
 

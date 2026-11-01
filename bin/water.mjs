@@ -18,7 +18,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import * as zanao from '../lib/zanao.mjs'
 import { readConfig } from '../lib/config.mjs'
-import { readState, writeState, replyQuota } from '../lib/state.mjs'
+import { readState, writeState, replyQuota, isLiked, markLiked, isLikedComment, markLikedComment } from '../lib/state.mjs'
 import { localStamp } from '../lib/time.mjs'
 
 const log = (m) => {
@@ -61,7 +61,7 @@ zanao.setGap(cfg.requestGapMs)
 const st = readState()
 const q = replyQuota(st, cfg)
 if (q.left <= 0) { log(`今日额度用完（${st.replies}/${cfg.replyPerDay}），明天再说`); process.exit(0) }
-if (q.waitSec > 0) { log(`两条之间还要等 ${q.waitSec}s，这轮跳过`); process.exit(0) }
+if (q.waitSec > 0) { log(`两条之间还要等 ${q.waitSec}s（本轮间隔 ${q.gapSec}s），这轮跳过`); process.exit(0) }
 
 /* ------------------------------------------------------------ 挑帖 */
 const [latest, hot] = await Promise.all([
@@ -116,3 +116,31 @@ fresh.water = { count: n + 1, lastAt: new Date().toISOString(), lastText: text }
 writeState(fresh)
 
 log(`已发 "${text}" → ${target.id}「${target.title.slice(0, 20)}」（今日 ${fresh.replies}/${cfg.replyPerDay}）`)
+
+/* ------------------------------------------------------------ 顺手点赞 */
+// 点两处：这条自己发言的帖子（likeRepliedThread），和自己刚发的那条评论（likeOwnComment）。
+// 服务端是幂等置位，重复点不会累加，state 里记一笔只是省请求。
+if (cfg.autoLike) {
+  const did = []
+  if (cfg.likeRepliedThread && !isLiked(fresh, target.id)) {
+    try {
+      await zanao.likeThread(target.id)
+      markLiked(fresh, target.id)
+      did.push('帖')
+    } catch (e) { log(`点赞帖子失败 tid=${target.id}：${e.message}`) }
+  }
+  if (cfg.likeOwnComment) {
+    try {
+      const cid = await zanao.myCommentId(target.id, { content: text })
+      if (cid && !isLikedComment(fresh, cid)) {
+        await zanao.likeComment(target.id, cid)
+        markLikedComment(fresh, cid)
+        did.push('自己的评论')
+      }
+    } catch (e) { log(`点赞自己的评论失败 tid=${target.id}：${e.message}`) }
+  }
+  if (did.length) {
+    writeState(fresh)
+    log(`顺手点了赞：${did.join(' + ')}`)
+  }
+}

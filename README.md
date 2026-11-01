@@ -57,6 +57,7 @@ token 输入框（保存即验证）、每轮/回帖/自动化三组开关，以
 | `zanao_draft` | **默认出口**：把要回的话落草稿 |
 | `zanao_drafts` | 草稿箱 |
 | `zanao_reply` | 真发一条（`confirm` + `autoReply`/`force` + `draftOnly`/`approved`） |
+| `zanao_like` | 给帖子/评论点赞（默认干跑，`confirm:true` 才点；`action:0` 取消）。不带 `commentId` 就点帖子 |
 | `zanao_report_write` / `_read` / `_reports` | 日报 |
 | `zanao_persona` | 人设与语气样本 |
 | `zanao_selfcheck` | 一次跑完只读自检 |
@@ -65,13 +66,28 @@ token 输入框（保存即验证）、每轮/回帖/自动化三组开关，以
 ## 回帖的三道闸 + 两道锁
 
 - **闸 1** 每天 `replyPerDay` 条（默认 5）；
-- **闸 2** 两条之间至少 `replyGapSec` 秒（默认 60）；
+- **闸 2** 两条之间至少 `replyGapSec` 秒，再往上随机浮动 `replyGapJitterSec` 秒（默认 60 + 0；`60 + 120` 即 60~180 秒，浮动值按 `lastReplyAt` 取种子，同一条回复算出来是固定的，不会每次调用乱跳）；
 - **闸 3** 同一个帖一天只回一次；
 - **锁 1** `autoReply` 默认关，关着时 `zanao_reply` 直接拒（除非用户当场 `force:true`）；
 - **锁 2** `draftOnly` 默认开，必须「先落草稿 → 人看过 → `approved:true`」才发。
 - `replyText` 非空时，回帖内容固定成这一句（水经验用，例如 `3` / `+3`），不经过人设。
 
 额度计数在 `$DSH_HOME/zanao-market/state.json`，跨进程、重启都认。
+
+## 点赞
+
+接口是 `POST thread/like` 与 `POST comment/like`，参数 `id` + `comment_id`（帖子点赞时给 0）+ `action`（1 点、0 取消）。
+服务端**幂等置位**：重复点同一目标不会累加，所以不用担心点重。
+
+三个开关（都在 `autoLike` 总闸下面）：
+
+- `likeRepliedThread` —— 自己发言那个帖子的赞（默认开，每次回帖后顺带点，`bin/water.mjs` 里做）；
+- `likeOwnComment` —— 自己刚发那条评论的赞（默认**关**：不给自己点）；
+- `likeOwnThread` —— 自己发的帖的赞（默认**关**：不给自己点）。
+
+`bin/like.mjs` 是补赞脚本：把 `state.replied` 里所有回过言的帖点一遍（自己的帖只在 `likeOwnThread` 打开时才点），
+一轮最多 25 个、按 `requestGapMs` 慢跑，点过的记在 `state.liked` 里不重复请求。
+配合 cron「刷赞噢集市·补赞」每 30 分钟跑一次。
 
 ## 数据放在哪
 
